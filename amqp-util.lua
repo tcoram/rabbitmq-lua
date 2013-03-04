@@ -106,11 +106,18 @@ function M.create_consumer(conn,queuename,cbfunc,opt)
    return f
 end
 
-function M.wait_for_messages(conn,consumer_tbl,opt)
+
+function M.wait_for_messages(conn,consumers)
    local result 
    local frame = ffi.new("amqp_frame_t",{})
    local body_target
    local body_received
+   local consumer_tbl = {}
+
+   for q,fo in pairs(consumers) do 
+      f,opts = fo[1],fo[2]
+      consumer_tbl[q] = M.create_consumer(conn,q,f,opts)
+   end
 
    while true do
       local databuf = ""

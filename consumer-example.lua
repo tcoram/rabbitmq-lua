@@ -9,7 +9,7 @@ function qprint(consumer_tag,data)
    io.write(string.format("tag=%s, data=%s\n",consumer_tag,data))
 end
 
-consumers = {LuaQueue = rb.create_consumer(conn,"LuaQueue",qprint),
-	     LuaQueue2 = rb.create_consumer(conn,"LuaQueue2",qprint)}
-rb.wait_for_messages(conn,consumers)
+rb.wait_for_messages(conn, { LuaQueue = {qprint, {no_ack=1}},
+			     LuaQueue2 = {qprint} })
+			
 
