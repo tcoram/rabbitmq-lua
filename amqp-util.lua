@@ -83,6 +83,67 @@ function M.bind_queue(conn,name,exchange,opt)
    M.die_on_amqp_error(A.amqp_get_rpc_reply(conn), "Binding queue.")
 end
 
+function M.create_consumer(conn,queuename,cbfunc,opt)
+   local opt = opt or {}
+   local channel = opt.channel or 1
+   local consumer_tag = opt.consumer_tag or queuename
+   local no_local = opt.no_local or 0
+   local no_ack = opt.no_ack or 0
+   local exclusive = opt.exclusive or 0
+
+   A.amqp_basic_consume(conn,channel,
+			A.amqp_cstring_bytes(queuename),
+			A.amqp_cstring_bytes(consumer_tag),
+			no_local, no_ack, exclusive, A.amqp_empty_table)
+   M.die_on_amqp_error(A.amqp_get_rpc_reply(conn), "Consuming.")
+   f = function(delinfo,data)
+      cbfunc(consumer_tag,data)
+      if no_ack == 0 then 
+	 A.amqp_basic_ack(conn,channel, delinfo.delivery_tag, 0) 
+      end
+
+   end
+   return f
+end
+
+function M.wait_for_messages(conn,consumer_tbl,opt)
+   local result 
+   local frame = ffi.new("amqp_frame_t",{})
+   local body_target
+   local body_received
+
+   while true do
+      local databuf = ""
+      A.amqp_maybe_release_buffers(conn)
+      result=A.amqp_simple_wait_frame(conn,frame)
+      if result < 0 then break end
+      if frame.frame_type == A.AMQP_FRAME_METHOD and 
+	 frame.payload.method.id == A.AMQP_BASIC_DELIVER_METHOD then
+	 local delinfo = ffi.cast("amqp_basic_deliver_t *", frame.payload.method.decoded)
+	 result=tonumber(A.amqp_simple_wait_frame(conn,frame))
+	 if result < 0 then break end
+	 if frame.frame_type ~= A.AMQP_FRAME_HEADER then
+	    error("Expected header!")
+	 end
+	 body_target = tonumber(frame.payload.properties.body_size)
+	 body_received = 0
+	 while body_received  < body_target do
+	    result=tonumber(A.amqp_simple_wait_frame(conn,frame))
+	    if result < 0 then break end
+	    if frame.frame_type ~= A.AMQP_FRAME_BODY then
+	       error("Expected header!")
+	    end
+	    body_received = body_received + tonumber(frame.payload.body_fragment.len)
+
+	    databuf = databuf .. ffi.string(frame.payload.body_fragment.bytes,
+					    tonumber(frame.payload.body_fragment.len))
+	 end
+	 tag=ffi.string(delinfo.consumer_tag.bytes,delinfo.consumer_tag.len)
+	 consumer_tbl[tag](delinfo,databuf)
+      end
+   end
+end
+
 function M.consume(conn,queuename,cbfunc,opt)
    local opt = opt or {}
    local channel = opt.channel or 1
@@ -96,7 +157,7 @@ function M.consume(conn,queuename,cbfunc,opt)
 			A.amqp_cstring_bytes(consumer_tag),
 			no_local, no_ack, exclusive, A.amqp_empty_table)
    M.die_on_amqp_error(A.amqp_get_rpc_reply(conn), "Consuming.")
-  
+
    local result 
    local frame = ffi.new("amqp_frame_t",{})
    local body_target
@@ -109,7 +170,7 @@ function M.consume(conn,queuename,cbfunc,opt)
       if result < 0 then break end
       if frame.frame_type == A.AMQP_FRAME_METHOD and 
 	 frame.payload.method.id == A.AMQP_BASIC_DELIVER_METHOD then
-	 local ackm = ffi.cast("amqp_basic_deliver_t *", frame.payload.method.decoded)
+	 local delinfo = ffi.cast("amqp_basic_deliver_t *", frame.payload.method.decoded)
 	 result=tonumber(A.amqp_simple_wait_frame(conn,frame))
 	 if result < 0 then break end
 	 if frame.frame_type ~= A.AMQP_FRAME_HEADER then
@@ -131,7 +192,7 @@ function M.consume(conn,queuename,cbfunc,opt)
 	 cbfunc(databuf)
 	 if body_received ~= body_target then break end
 	 if no_ack == 0 then 
-	    A.amqp_basic_ack(conn,channel, ackm.delivery_tag, 0) 
+	    A.amqp_basic_ack(conn,channel, delinfo.delivery_tag, 0) 
 	 end
       end
    end

@@ -3,7 +3,7 @@
 -- Requires at least librrabbitmq.so.1.0 (https://github.com/alanxz/rabbitmq-c)
 --
 -- The contents of this file has been 
--- derived (by hand) from amqp.h and amqp-framing.h 
+-- derived (by hand) from rabbitmq-c's amqp.h and amqp-framing.h 
 --
 
 
