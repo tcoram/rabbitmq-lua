@@ -2,6 +2,8 @@ rb=require "amqp-util"
 
 conn = rb.connect_rabbit{host="localhost"}
 rb.declare_exchange(conn, "LuaExchange", "fanout")
+rb.declare_queue(conn,"LuaQueue")
+rb.declare_queue(conn,"LuaQueue2")
 rb.bind_queue(conn, "LuaQueue","LuaExchange")
 rb.bind_queue(conn, "LuaQueue2","LuaExchange")
 

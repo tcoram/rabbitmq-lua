@@ -164,7 +164,6 @@ function M.publish(conn,exchange,msg,opt)
    ffi.copy(buf.bytes,msg,#msg)
    buf.len = #msg
 
-   io.write(string.format("%d\n",tonumber(buf.len)))
    A.amqp_basic_publish(conn, channel, 
 			A.amqp_cstring_bytes(exchange),  
 			A.amqp_cstring_bytes(routingkey),
