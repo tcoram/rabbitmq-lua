@@ -107,7 +107,8 @@ function M.create_consumer(conn,queuename,cbfunc,opt)
 end
 
 
-function M.wait_for_messages(conn,consumers)
+function M.wait_for_messages(conn,consumers,count)
+   local count = count or -1
    local result 
    local frame = ffi.new("amqp_frame_t",{})
    local body_target
@@ -119,7 +120,7 @@ function M.wait_for_messages(conn,consumers)
       consumer_tbl[q] = M.create_consumer(conn,q,f,opts)
    end
 
-   while true do
+   repeat
       local databuf = ""
       A.amqp_maybe_release_buffers(conn)
       result=A.amqp_simple_wait_frame(conn,frame)
@@ -148,7 +149,8 @@ function M.wait_for_messages(conn,consumers)
 	 tag=ffi.string(delinfo.consumer_tag.bytes,delinfo.consumer_tag.len)
 	 consumer_tbl[tag](delinfo,databuf)
       end
-   end
+      if count > 0 then count = count -1 end
+   until count == 0
 end
 
 function M.publish(conn,exchange,msg,opt)
